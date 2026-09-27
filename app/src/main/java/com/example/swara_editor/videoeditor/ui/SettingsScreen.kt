@@ -1,5 +1,7 @@
 package com.example.swara_editor.videoeditor.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -21,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.util.UnstableApi
 import com.example.swara_editor.videoeditor.data.AppSettings
 import com.example.swara_editor.videoeditor.data.AppTheme
+import com.example.swara_editor.videoeditor.data.UpdateChecker
+import com.example.swara_editor.videoeditor.data.UpdateInfo
 import com.example.swara_editor.videoeditor.diagnostics.EditorDiagnosticEngine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -200,7 +204,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     var isCheckingUpdate by remember { mutableStateOf(false) }
-                    var updateCheckResult by remember { mutableStateOf<String?>(null) }
+                    var updateCheckInfo by remember { mutableStateOf<UpdateInfo?>(null) }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -210,9 +214,9 @@ fun SettingsScreen(
                             onClick = {
                                 isCheckingUpdate = true
                                 scope.launch {
-                                    delay(1200L)
+                                    val info = UpdateChecker.checkForUpdates()
                                     isCheckingUpdate = false
-                                    updateCheckResult = "Swara Editor v0.0.1 is up to date! You have the latest features."
+                                    updateCheckInfo = info
                                 }
                             },
                             enabled = !isCheckingUpdate,
@@ -251,15 +255,59 @@ fun SettingsScreen(
                         }
                     }
 
-                    if (updateCheckResult != null) {
+                    if (updateCheckInfo != null) {
+                        val info = updateCheckInfo!!
                         AlertDialog(
-                            onDismissRequest = { updateCheckResult = null },
-                            icon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                            title = { Text("Software Update") },
-                            text = { Text(updateCheckResult!!) },
+                            onDismissRequest = { updateCheckInfo = null },
+                            icon = {
+                                Icon(
+                                    imageVector = if (info.hasUpdate) Icons.Default.SystemUpdate else Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            title = {
+                                Text(if (info.hasUpdate) "New Update Available (${info.latestVersion})" else "Swara Editor is Up to Date")
+                            },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = if (info.hasUpdate)
+                                            "A new version (${info.latestVersion}) is available on GitHub!"
+                                        else
+                                            "You are running the latest version (${info.currentVersion}). Connected live to GitHub (kannan-ai/swara_editor)."
+                                    )
+                                    if (info.releaseNotes.isNotBlank()) {
+                                        Text(
+                                            text = info.releaseNotes.take(300),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                            },
                             confirmButton = {
-                                Button(onClick = { updateCheckResult = null }) {
-                                    Text("OK")
+                                if (info.hasUpdate) {
+                                    Button(
+                                        onClick = {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadUrl))
+                                            context.startActivity(intent)
+                                            updateCheckInfo = null
+                                        }
+                                    ) {
+                                        Text("Download Update")
+                                    }
+                                } else {
+                                    Button(onClick = { updateCheckInfo = null }) {
+                                        Text("OK")
+                                    }
+                                }
+                            },
+                            dismissButton = {
+                                if (info.hasUpdate) {
+                                    TextButton(onClick = { updateCheckInfo = null }) {
+                                        Text("Later")
+                                    }
                                 }
                             }
                         )
