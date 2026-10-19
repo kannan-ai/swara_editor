@@ -26,6 +26,7 @@ import com.example.swara_editor.videoeditor.data.AppTheme
 import com.example.swara_editor.videoeditor.data.UpdateChecker
 import com.example.swara_editor.videoeditor.data.UpdateInfo
 import com.example.swara_editor.videoeditor.diagnostics.EditorDiagnosticEngine
+import com.example.swara_editor.videoeditor.utils.ApkSharer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -255,6 +256,31 @@ fun SettingsScreen(
                         }
                     }
 
+                    var isSharingApk by remember { mutableStateOf(false) }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Button(
+                        onClick = {
+                            isSharingApk = true
+                            scope.launch {
+                                ApkSharer.shareAppApk(context)
+                                isSharingApk = false
+                            }
+                        },
+                        enabled = !isSharingApk,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth().height(40.dp)
+                    ) {
+                        if (isSharingApk) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White)
+                        } else {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Share App APK File")
+                        }
+                    }
+
                     if (updateCheckInfo != null) {
                         val info = updateCheckInfo!!
                         AlertDialog(
@@ -275,7 +301,7 @@ fun SettingsScreen(
                                         text = if (info.hasUpdate)
                                             "A new version (${info.latestVersion}) is available on GitHub!"
                                         else
-                                            "You are running the latest version (${info.currentVersion}). Connected live to GitHub (kannan-ai/swara_editor)."
+                                            "You are running the latest version (${info.currentVersion}). Connected live to GitHub Releases (kannan-ai/swara_editor)."
                                     )
                                     if (info.releaseNotes.isNotBlank()) {
                                         Text(
@@ -287,27 +313,19 @@ fun SettingsScreen(
                                 }
                             },
                             confirmButton = {
-                                if (info.hasUpdate) {
-                                    Button(
-                                        onClick = {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadUrl))
-                                            context.startActivity(intent)
-                                            updateCheckInfo = null
-                                        }
-                                    ) {
-                                        Text("Download Update")
+                                Button(
+                                    onClick = {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadUrl))
+                                        context.startActivity(intent)
+                                        updateCheckInfo = null
                                     }
-                                } else {
-                                    Button(onClick = { updateCheckInfo = null }) {
-                                        Text("OK")
-                                    }
+                                ) {
+                                    Text(if (info.hasUpdate) "Download Update" else "View GitHub Releases")
                                 }
                             },
                             dismissButton = {
-                                if (info.hasUpdate) {
-                                    TextButton(onClick = { updateCheckInfo = null }) {
-                                        Text("Later")
-                                    }
+                                TextButton(onClick = { updateCheckInfo = null }) {
+                                    Text("Close")
                                 }
                             }
                         )
