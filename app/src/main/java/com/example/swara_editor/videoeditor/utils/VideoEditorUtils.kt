@@ -2,6 +2,9 @@ package com.example.swara_editor.videoeditor.utils
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Log
@@ -85,6 +88,77 @@ object MediaProcessor {
                 retriever.release()
             } catch (_: Exception) {}
         }
+    }
+
+    suspend fun decodeSampledBitmapWithExif(
+        context: Context,
+        uri: Uri,
+        reqWidth: Int = 1920,
+        reqHeight: Int = 1080
+    ): Bitmap? = withContext(Dispatchers.IO) {
+        try {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, options)
+            }
+
+            if (options.outWidth <= 0 || options.outHeight <= 0) return@withContext null
+
+            options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
+            options.inJustDecodeBounds = false
+            options.inPreferredConfig = Bitmap.Config.ARGB_8888
+
+            val decodedBitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, options)
+            } ?: return@withContext null
+
+            val orientationInt: Int = context.contentResolver.openInputStream(uri)?.use { stream ->
+                try {
+                    val exif = ExifInterface(stream)
+                    exif.getAttributeInt(
+                        ExifInterface.TAG_ORIENTATION,
+                        ExifInterface.ORIENTATION_NORMAL
+                    )
+                } catch (_: Exception) {
+                    ExifInterface.ORIENTATION_NORMAL
+                }
+            } ?: ExifInterface.ORIENTATION_NORMAL
+
+            val rotationAngle = when (orientationInt) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+
+            if (rotationAngle != 0f) {
+                val matrix = Matrix().apply { postRotate(rotationAngle) }
+                val rotated = Bitmap.createBitmap(decodedBitmap, 0, 0, decodedBitmap.width, decodedBitmap.height, matrix, true)
+                if (rotated != decodedBitmap) {
+                    decodedBitmap.recycle()
+                }
+                rotated
+            } else {
+                decodedBitmap
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+        val (height: Int, width: Int) = options.outHeight to options.outWidth
+        var inSampleSize = 1
+
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight: Int = height / 2
+            val halfWidth: Int = width / 2
+            while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
     }
 }
 

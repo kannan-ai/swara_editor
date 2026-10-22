@@ -95,4 +95,13 @@ private class TransitionShaderProgram(
         glProgram.bindAttributesAndUniforms()
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
     }
+
+    override fun release() {
+        super.release()
+        try {
+            glProgram.delete()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }
